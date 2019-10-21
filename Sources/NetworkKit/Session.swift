@@ -7,10 +7,10 @@ import Combine
 
 public class Session {
 
-    static let shared = Session()
+    static public let shared = Session()
     private init() { }
 
-    struct DataRequest {
+    public struct DataRequest {
         let url: URL
         let method: HTTPMethod
         let parameters: [String: Any]
@@ -18,7 +18,7 @@ public class Session {
         let headers: [String: Any]
     }
 
-    func request(_ request: DataRequest) -> AnyPublisher<Data, NetworkError> {
+    public func request(_ request: DataRequest) -> AnyPublisher<Data, NetworkError> {
         do {
             var urlRequest: URLRequest
 

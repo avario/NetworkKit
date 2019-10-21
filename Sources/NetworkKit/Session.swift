@@ -16,6 +16,14 @@ public class Session {
         let parameters: [String: Any]
         let encoding: ParameterEncoding
         let headers: [String: Any]
+
+        public init(url: URL, method: HTTPMethod, parameters: [String : Any] = [:], encoding: ParameterEncoding = .url, headers: [String : Any] = [:]) {
+            self.url = url
+            self.method = method
+            self.parameters = parameters
+            self.encoding = encoding
+            self.headers = headers
+        }
     }
 
     public func request(_ request: DataRequest) -> AnyPublisher<Data, NetworkError> {

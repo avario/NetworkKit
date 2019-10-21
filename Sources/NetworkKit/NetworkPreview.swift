@@ -30,29 +30,12 @@ extension Network {
     }
 }
 
-public extension DataNetworkRequest {
-
-    func dataPreview<N: Network>(from network: N) throws -> Data {
-
-		let previewAssetName = self.previewAssetName(for: network)
-
-        if let asset = NSDataAsset(name: previewAssetName) {
-            return asset.data
-
-        } else if let image = UIImage(named: previewAssetName) {
-            return image.pngData()!
-
-        } else {
-            print("⚠️ No preview asset with name: \(previewAssetName)")
-            throw NetworkError.unknown
-        }
-    }
-}
-
 extension DecodableNetworkRequest {
 
-    func decodedPreview<N: Network>(from network: N) throws -> Response {
-		let previewData = try self.dataPreview(from: network)
+    func preview<N: Network>(from network: N) throws -> Response {
+        let url = network.baseURL.appendingPathComponent(path)
+        let previewData = try Session.shared.preview(for: url)
+
         return try network.decoder.decode(Response.self, from: previewData)
     }
 }

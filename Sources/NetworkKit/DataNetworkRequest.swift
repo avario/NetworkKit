@@ -9,8 +9,6 @@ public protocol DataNetworkRequest {
 	var parameters: Parameters { get }
     var headers: Headers { get }
 
-    func previewAssetName<N: Network>(for network: N) -> String
-
     associatedtype Parameters: Encodable = EmptyEncodable
     associatedtype Headers: Encodable = EmptyEncodable
 }
@@ -28,14 +26,4 @@ public extension DataNetworkRequest {
 
 	var parameters: EmptyEncodable { EmptyEncodable() }
     var headers: EmptyEncodable { EmptyEncodable() }
-
-    func previewAssetName<N: Network>(for network: N) -> String {
-        let localURL = network.baseURL.appendingPathComponent(path)
-        var localName = localURL.absoluteString
-        if let scheme = localURL.scheme {
-            localName = localName.replacingOccurrences(of: scheme, with: "").replacingOccurrences(of: "://", with: "")
-        }
-
-        return localName
-    }
 }

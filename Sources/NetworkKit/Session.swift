@@ -17,7 +17,13 @@ public class Session {
         let encoding: ParameterEncoding
         let headers: [String: Any]
 
-        public init(url: URL, method: HTTPMethod, parameters: [String : Any] = [:], encoding: ParameterEncoding = .url, headers: [String : Any] = [:]) {
+        public init(
+            url: URL,
+            method: HTTPMethod,
+            parameters: [String : Any] = [:],
+            encoding: ParameterEncoding = .url,
+            headers: [String : Any] = [:]) {
+
             self.url = url
             self.method = method
             self.parameters = parameters
@@ -26,7 +32,33 @@ public class Session {
         }
     }
 
-    public func request(_ request: DataRequest) -> AnyPublisher<Data, NetworkError> {
+    public func request(_ request: DataRequest, previewMode: NetworkPreviewMode = .automatic) -> AnyPublisher<Data, NetworkError> {
+
+        switch previewMode {
+        case .automatic:
+            if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != nil {
+                fallthrough
+            }
+        case .success:
+            do {
+                return Result.success(try preview(for: request))
+                    .publisher.eraseToAnyPublisher()
+            } catch {
+                return Result.failure(NetworkError(error: error))
+                    .publisher.eraseToAnyPublisher()
+            }
+        case .loading:
+            return PassthroughSubject<Data, NetworkError>()
+                .eraseToAnyPublisher()
+
+        case .failure(let error):
+            return Result.failure(error)
+                .publisher.eraseToAnyPublisher()
+
+        case .noPreview:
+            break
+        }
+
         do {
             var urlRequest: URLRequest
 
@@ -58,6 +90,25 @@ public class Session {
         } catch {
             return Result.failure(NetworkError.init(error: error))
                 .publisher.eraseToAnyPublisher()
+        }
+    }
+
+    public func preview(for request: DataRequest) throws -> Data {
+
+        var previewAssetName = request.url.absoluteString
+        if let scheme = request.url.scheme {
+            previewAssetName = previewAssetName.replacingOccurrences(of: scheme, with: "").replacingOccurrences(of: "://", with: "")
+        }
+
+        if let asset = NSDataAsset(name: previewAssetName) {
+            return asset.data
+
+        } else if let image = UIImage(named: previewAssetName) {
+            return image.pngData()!
+
+        } else {
+            print("⚠️ No preview asset found with name: \(previewAssetName)")
+            throw NetworkError.unknown
         }
     }
 }

@@ -1,6 +1,8 @@
 import XCTest
 @testable import NetworkKit
 
+import Combine
+
 final class NetworkKitTests: XCTestCase {
 	
 	class MoviesNetwork: Network {		
@@ -24,7 +26,7 @@ final class NetworkKitTests: XCTestCase {
 		}
 	}
 	
-	struct FetchPopularMovies: DecodableNetworkRequest {
+	struct FetchPopularMovies: NetworkRequest {
 
 		let method: HTTPMethod = .get
 		let path: String = "discover/movie"
@@ -64,7 +66,7 @@ final class NetworkKitTests: XCTestCase {
 		}
 	}
 
-    struct FetchMovieDetails: DecodableNetworkRequest {
+    struct FetchMovieDetails: NetworkRequest {
 		
 		let method: HTTPMethod = .get
 		let path: String
@@ -99,6 +101,7 @@ final class NetworkKitTests: XCTestCase {
 	}
 	
 	var moviesNetwork: MoviesNetwork!
+    var cancellable: Cancellable?
 	
 	override func setUp() {
 		moviesNetwork = .init()
@@ -110,8 +113,8 @@ final class NetworkKitTests: XCTestCase {
 		
 		var response: FetchMovieDetails.Response?
 		
-		_ = moviesNetwork
-			.decodableRequest(FetchMovieDetails(movieID: 301528))
+		cancellable = moviesNetwork
+			.request(FetchMovieDetails(movieID: 301528))
 			.sink(receiveCompletion: { (completion) in
 				
 			}) { (value) in
@@ -131,8 +134,8 @@ final class NetworkKitTests: XCTestCase {
 		
 		var response: FetchPopularMovies.Response?
 		
-		_ = moviesNetwork
-			.decodableRequest(FetchPopularMovies())
+		cancellable = moviesNetwork
+			.request(FetchPopularMovies())
 			.sink(receiveCompletion: { (completion) in
 				
 			}) { (value) in

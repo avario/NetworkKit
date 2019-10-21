@@ -22,7 +22,7 @@ public enum NetworkPreviewMode {
     }
 }
 
-extension Network {
+public extension Network {
 
     func preview(mode: NetworkPreviewMode) -> Self {
         NetworkPreviewMode[for: self] = mode
@@ -30,12 +30,17 @@ extension Network {
     }
 }
 
-extension DecodableNetworkRequest {
+public extension NetworkRequest where Response: Decodable {
 
     func preview<N: Network>(from network: N) throws -> Response {
-        let url = network.baseURL.appendingPathComponent(path)
-        let previewData = try Session.shared.preview(for: url)
-
+        let previewData = try NetworkKit.preview(for: self.asURLRequest(on: network))
         return try network.decoder.decode(Response.self, from: previewData)
+    }
+}
+
+public extension NetworkRequest where Response == Data {
+
+    func preview<N: Network>(from network: N) throws -> Data {
+        return try NetworkKit.preview(for: self.asURLRequest(on: network))
     }
 }

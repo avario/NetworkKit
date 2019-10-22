@@ -74,7 +74,7 @@ public extension Network {
                     guard 200..<300 ~= httpResponse.statusCode else {
                         throw NetworkError.remote(
                             statusCode: httpResponse.statusCode,
-                            error: try self.errorContent(for: data))
+                            content: try self.errorContent(for: data))
                     }
 
                     return try request.response(on: self, for: data)

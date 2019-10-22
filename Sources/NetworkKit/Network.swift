@@ -15,6 +15,10 @@ public protocol Network: AnyObject {
 
 	var persistentHeaders: PersistentHeaders { get }
 	associatedtype PersistentHeaders: Encodable = EmptyEncodable
+
+    associatedtype ErrorContent = Void
+
+    func errorContent(for data: Data) throws -> ErrorContent
 }
 
 public extension Network {
@@ -39,28 +43,77 @@ public extension Network {
 		return encoder
 	}
 
-    func request<R: NetworkRequest>(_ request: R) -> AnyPublisher<R.Response, NetworkError> where R.Response: Decodable {
+    func request<R: NetworkRequest>(_ request: R) -> AnyPublisher<R.Response, NetworkError<ErrorContent>> {
         do {
-            return NetworkKit.request(try request.asURLRequest(on: self), previewMode: previewMode)
-                .decode(
-                    type: R.Response.self,
-                    decoder: decoder)
-                .mapError(NetworkError.init)
-                .eraseToAnyPublisher()
+            switch previewMode {
+            case .automatic:
+                if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != nil {
+                    fallthrough
+                }
+            case .success:
+                return Result.success(try request.preview(on: self))
+                    .publisher.eraseToAnyPublisher()
+            case .loading:
+                return PassthroughSubject<R.Response, NetworkError>()
+                    .eraseToAnyPublisher()
 
+            case .failure(let error):
+                return Result.failure(NetworkError<ErrorContent>(error ?? NetworkError<ErrorContent>.local(.preview)))
+                    .publisher.eraseToAnyPublisher()
+
+            case .noPreview:
+                break
+            }
+
+            return URLSession.shared.dataTaskPublisher(for: try request.asURLRequest(on: self))
+                .tryMap { (data: Data, response: URLResponse) -> R.Response in
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        throw NetworkError<ErrorContent>.local(.invalidURLResponse(response))
+                    }
+
+                    guard 200..<300 ~= httpResponse.statusCode else {
+                        throw NetworkError.remote(
+                            statusCode: httpResponse.statusCode,
+                            error: try self.errorContent(for: data))
+                    }
+
+                    return try request.response(on: self, for: data)
+                }
+                .mapError(NetworkError<ErrorContent>.init)
+                .receive(on: DispatchQueue.main)
+                .eraseToAnyPublisher()
         } catch {
-            return Result.failure(NetworkError.init(error: error))
+            return Result.failure(NetworkError<ErrorContent>(error))
                 .publisher.eraseToAnyPublisher()
         }
+    }
+}
 
-	}
+public extension Network where ErrorContent == Void {
 
-    func request<R: NetworkRequest>(_ request: R) -> AnyPublisher<Data, NetworkError> where R.Response == Data {
-		do {
-            return NetworkKit.request(try request.asURLRequest(on: self), previewMode: previewMode)
-		} catch {
-			return Result.failure(NetworkError.init(error: error))
-				.publisher.eraseToAnyPublisher()
-		}
-	}
+    func errorContent(for data: Data) throws {
+        return
+    }
+}
+
+public extension Network where ErrorContent: Decodable {
+
+    func errorContent(for data: Data) throws -> ErrorContent {
+        return try decoder.decode(ErrorContent.self, from: data)
+    }
+}
+
+public struct EmptyEncodable: Encodable { }
+
+public enum ParameterEncoding {
+    case url
+    case json
+}
+
+public enum HTTPMethod: String {
+    case delete
+    case get
+    case head
+    case post
+    case put
 }

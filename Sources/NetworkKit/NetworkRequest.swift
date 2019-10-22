@@ -1,5 +1,6 @@
 
 import Foundation
+import UIKit
 
 public protocol NetworkRequest {
 
@@ -13,6 +14,10 @@ public protocol NetworkRequest {
     associatedtype Headers: Encodable = EmptyEncodable
 
 	associatedtype Response = Data
+
+    func previewAssetName<N: Network>(on network: N) -> String
+    func preview<N: Network>(on network: N) throws -> Response
+    func response<N: Network>(on network: N, for data: Data) throws -> Response
 }
 
 public extension NetworkRequest {
@@ -28,9 +33,6 @@ public extension NetworkRequest {
 
     var parameters: EmptyEncodable { EmptyEncodable() }
     var headers: EmptyEncodable { EmptyEncodable() }
-}
-
-public extension NetworkRequest {
 
     func asURLRequest<N: Network>(on network: N) throws -> URLRequest {
 
@@ -71,5 +73,30 @@ public extension NetworkRequest {
         }
 
         return urlRequest
+    }
+}
+
+public extension NetworkRequest where Response: Decodable {
+
+    func response<N: Network>(on network: N, for data: Data) throws -> Response {
+        return try network.decoder.decode(Response.self, from: data)
+    }
+}
+
+public extension NetworkRequest where Response == Data {
+
+    func response<N: Network>(on network: N, for data: Data) throws -> Response {
+        return data
+    }
+}
+
+public extension NetworkRequest where Response == UIImage {
+
+    func response<N: Network>(on network: N, for data: Data) throws -> Response {
+        guard let image = UIImage(data: data) else {
+            throw NetworkError<Void>.local(.invalidImageData(data))
+        }
+
+        return image
     }
 }

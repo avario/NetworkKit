@@ -1,39 +1,38 @@
-
 import Foundation
 
 public enum NetworkError<T>: Error {
 
 	case local(LocalError)
-    case remote(statusCode: Int, content: T)
+	case remote(statusCode: Int, content: T)
 
-    public enum LocalError {
-        case invalidURLResponse(URLResponse)
-        case invalidImageData(Data)
+	public enum LocalError {
+		case invalidURLResponse(URLResponse)
+		case invalidImageData(Data)
 
-        case decodingError(DecodingError)
-        case encodingError(EncodingError)
+		case decodingError(DecodingError)
+		case encodingError(EncodingError)
 
-        case preview
-        case previewAssetNotFound(String)
-        
-        case unknown(Error)
-    }
+		case preview
+		case previewAssetNotFound(String)
+		
+		case unknown(Error)
+	}
 
 	public init(_ error: Error) {
-        if let error = error as? Self {
-            self = error
-            return
-        }
+		if let error = error as? Self {
+			self = error
+			return
+		}
 
-        switch error {
-        case let decodingError as DecodingError:
-            self = .local(.decodingError(decodingError))
+		switch error {
+		case let decodingError as DecodingError:
+			self = .local(.decodingError(decodingError))
 
-        case let encodingError as EncodingError:
-            self = .local(.encodingError(encodingError))
+		case let encodingError as EncodingError:
+			self = .local(.encodingError(encodingError))
 
-        default:
-            self = .local(.unknown(error))
-        }
+		default:
+			self = .local(.unknown(error))
+		}
 	}
 }

@@ -3,7 +3,7 @@ import Foundation
 public enum NetworkError<T>: Error {
 
 	case local(LocalError)
-	case remote(statusCode: Int, content: T)
+	case remote(T)
 
 	public enum LocalError {
 		case invalidURLResponse(URLResponse)

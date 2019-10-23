@@ -49,7 +49,7 @@ public extension NetworkRequest where Response: Decodable {
 		
 		guard let data = NSDataAsset(name: assetName)?.data else {
 			print("⚠️ Data preview asset not found with name: \(assetName)")
-			throw NetworkError<N.ErrorContent>.local(.previewAssetNotFound(assetName))
+			throw NetworkError<N.RemoteError>.local(.previewAssetNotFound(assetName))
 		}
 		
 		return try network.decoder.decode(Response.self, from: data)
@@ -63,7 +63,7 @@ public extension NetworkRequest where Response == Data {
 		
 		guard let data = NSDataAsset(name: assetName)?.data else {
 			print("⚠️ Data preview asset not found with name: \(assetName)")
-			throw NetworkError<N.ErrorContent>.local(.previewAssetNotFound(assetName))
+			throw NetworkError<N.RemoteError>.local(.previewAssetNotFound(assetName))
 		}
 		
 		return data
@@ -77,7 +77,7 @@ public extension NetworkRequest where Response == UIImage {
 		
 		guard let image = UIImage(named: assetName) else {
 			print("⚠️ Image preview asset not found with name: \(assetName)")
-			throw NetworkError<N.ErrorContent>.local(.previewAssetNotFound(assetName))
+			throw NetworkError<N.RemoteError>.local(.previewAssetNotFound(assetName))
 		}
 		
 		return image

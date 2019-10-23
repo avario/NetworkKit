@@ -15,8 +15,8 @@ public protocol Network: AnyObject {
 	var persistentHeaders: PersistentHeaders { get }
 	associatedtype PersistentHeaders: Encodable = EmptyEncodable
 
-	associatedtype ErrorContent = Void
-	func errorContent(for data: Data) throws -> ErrorContent
+	associatedtype RemoteError = Void
+    func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError
 }
 
 public extension Network {
@@ -41,7 +41,7 @@ public extension Network {
 		return encoder
 	}
 
-	func request<R: NetworkRequest>(_ request: R) -> AnyPublisher<R.Response, NetworkError<ErrorContent>> {
+	func request<R: NetworkRequest>(_ request: R) -> AnyPublisher<R.Response, NetworkError<RemoteError>> {
 		do {
 			switch previewMode {
 			case .automatic:
@@ -57,7 +57,7 @@ public extension Network {
 					.eraseToAnyPublisher()
 
 			case .failure(let error):
-				return Result.failure(NetworkError<ErrorContent>(error ?? NetworkError<ErrorContent>.local(.preview)))
+				return Result.failure(NetworkError<RemoteError>(error ?? NetworkError<RemoteError>.local(.preview)))
 					.publisher.eraseToAnyPublisher()
 
 			case .noPreview:
@@ -67,38 +67,36 @@ public extension Network {
 			return URLSession.shared.dataTaskPublisher(for: try request.asURLRequest(on: self))
 				.tryMap { (data: Data, response: URLResponse) -> R.Response in
 					guard let httpResponse = response as? HTTPURLResponse else {
-						throw NetworkError<ErrorContent>.local(.invalidURLResponse(response))
+						throw NetworkError<RemoteError>.local(.invalidURLResponse(response))
 					}
 
 					guard 200..<300 ~= httpResponse.statusCode else {
-						throw NetworkError.remote(
-							statusCode: httpResponse.statusCode,
-							content: try self.errorContent(for: data))
+                        throw NetworkError.remote(try self.remoteError(for: httpResponse, data: data))
 					}
 
 					return try request.response(on: self, for: data)
 			}
-			.mapError(NetworkError<ErrorContent>.init)
+			.mapError(NetworkError<RemoteError>.init)
 			.receive(on: DispatchQueue.main)
 			.eraseToAnyPublisher()
 		} catch {
-			return Result.failure(NetworkError<ErrorContent>(error))
+			return Result.failure(NetworkError<RemoteError>(error))
 				.publisher.eraseToAnyPublisher()
 		}
 	}
 }
 
-public extension Network where ErrorContent == Void {
+public extension Network where RemoteError == Void {
 
-	func errorContent(for data: Data) throws {
+	func remoteError(for response: HTTPURLResponse, data: Data) throws {
 		return
 	}
 }
 
-public extension Network where ErrorContent: Decodable {
+public extension Network where RemoteError: Decodable {
 
-	func errorContent(for data: Data) throws -> ErrorContent {
-		return try decoder.decode(ErrorContent.self, from: data)
+	func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError {
+		return try decoder.decode(RemoteError.self, from: data)
 	}
 }
 

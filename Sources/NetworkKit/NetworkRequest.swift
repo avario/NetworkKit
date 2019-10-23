@@ -93,7 +93,7 @@ public extension NetworkRequest where Response == UIImage {
 
 	func response<N: Network>(on network: N, for data: Data) throws -> Response {
 		guard let image = UIImage(data: data) else {
-			throw NetworkError<N.ErrorContent>.local(.invalidImageData(data))
+			throw NetworkError<N.RemoteError>.local(.invalidImageData(data))
 		}
 
 		return image

@@ -11,9 +11,6 @@ public enum NetworkError<T>: Error {
 
 		case decodingError(DecodingError)
 		case encodingError(EncodingError)
-
-		case preview
-		case previewAssetNotFound(String)
 		
 		case unknown(Error)
 	}

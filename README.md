@@ -4,7 +4,7 @@ An abstraction layer on top of `URLSession`, NetworkKit provides a clear way to 
 > ⚠️ **Warning:** This package is under active development and is not considered ready for production use.
 
 ## Network
-The `Network` protocol is a way to share common properties and settings between requests that share the same service. You can use a network to set properties such as a common base URL, headers, error structures, or encoding/decoding settings.
+The `Network` protocol is a way to share common properties and settings between requests that use the same service. You can use a `Network` to set common properties such as a base URL, headers, or encoding/decoding settings.
 ```swift
 class MoviesNetwork: Network {
     let baseURL: URL = .init(string:"https://api.themoviedb.org/3/")!
@@ -20,12 +20,12 @@ struct FetchMovies: NetworkRequest {
     let path: String = "discover/movie"
 }
 ```
-Now you can perform this request on your network by using the `request` method.
+Now you can perform this request on your network by using the `request(on: Network)` method.
 ```swift
-MoviesNetwork().request(FetchMovies())
+FetchMovies().request(on: moviesNetwork)
 ```
 
-The `request` method returns a [Combine](https://developer.apple.com/documentation/combine) `Publisher` that publishes `Data` by default.
+The `request(on: Network)` method returns a [Combine](https://developer.apple.com/documentation/combine) `Publisher` that publishes  `Data` once the request is complete.
 
 ### Responses
 The response type of a `NetworkRequest` can be customised using the `Response` associated type.
@@ -44,8 +44,8 @@ struct FetchMovies: NetworkRequest {
 
 If the `Response` type is `Decodable` the response will be automatically decoded and the `Publisher` returned from `request` will instead publish that decoded response.
 ```swift
-MoviesNetwork()
-    .request(FetchMovies())
+FetchMovies()
+    .request(on: moviesNetwork)
     .assertNoFailure()
     .sink { (movies) in
         print(movies.results)
@@ -66,14 +66,14 @@ struct FetchMovies: NetworkRequest {
     }
 }
 ```
-You can customise the encoding destination of your parameters by implementing the `encoding` property on the request (`url` or `json` encoding is supported).
+You can customise the encoding destination of your parameters by implementing the `encoding` property on the request (`url` and `json` encoding is supported).
 
 > **Note:** You can customise `Date` encoding and decoding by implementing the `dateEncodingStrategy` and `dateDecodingStrategy` properties on your `Network`.
 
 ## Error Handling
 The publisher returned from `Network.request` publishes a `NetworkError` whenever an error occurs. `NetworkError` is an `enum` that contains two cases: `local` and `remote`.
 - Local errors are errors that have occured locally on the device (such as encoding errors or connection issues).
-- Remote errors are errors returned from a remote HTTP service. These can contain the data of the failed request. You can customise the type of this data by setting the `RemoteError` associated type of your `Network`.
+- Remote errors contain an error returned from a remote HTTP service. You can customise the type of this error by setting the `RemoteError` associated type of your `Network`.
 ```swift
 class MoviesNetwork: Network, ObservableObject {
     let baseURL: URL = .init(string:"https://api.themoviedb.org/3/")!
@@ -86,8 +86,8 @@ class MoviesNetwork: Network, ObservableObject {
 ```
 If the `RemoteError` type is `Decodable` the data from the failed request will be automatically decoded to that type.
 ```swift
-MoviesNetwork()
-    .request(FetchMovies())
+FetchMovies()
+    .request(on: moviesNetwork)
     .catch { error in
         switch error {
         case .local(let localError):
@@ -100,33 +100,25 @@ MoviesNetwork()
 > **Note:** If your `RemoteError` type doesn't implement `Decodable` you can map the returned data directly by implementing `Network.errorContent(for: HTTPURLResponse, data: Data) -> RemoteError`.
 
 ## Preview Modes
-A `Network` can show mock preview data that is compatible with Xcode Previews. You can set the preview mode of your `Network` by calling the `preview(mode: NetworkPreviewMode)` method on your network. If the preview mode is set to `success` the network will search the app's assets for an asset with that request's `assetPreviewName`. Add JSON files for your `Decodable` requests and image assets for your `UIImage` requests. You can also use any data asset for other response types.
+A `Network` can show mock preview data from local assets. You can set the preview mode of your `Network` by calling the `preview(_: NetworkPreviewMode)` method.
+
+If the preview mode is set to `always` the network will search the app for an asset with a name matching the full path of the request without the scheme (`https://api.themoviedb.org/3/movies` becomes `api.themoviedb.org/3/movies`).
+
+Add JSON files for your `Decodable` requests and image assets for your `UIImage` requests. You can also use any data asset for other response types. You can use asset catalog groups with `Provides Namespace` enabled to organise your preview assets.
 ![Preview Assets Screenshot](PreviewAssetsScreenshot.png)
-By default the asset name will be the full path of the request without the scheme (`https://api.themoviedb.org/3/movies` becomes `api.themoviedb.org/3/movies`). You can use asset catalog groups with `Provides Namespace` enabled to organise your preview assets.
 
-If you set the preview mode to `loading` the network will load indefinitely and never return a response for any requests. Setting the preview mode to `failure` allows you to specify an error that the network will return for every request. If you don't want any preview behaviour you can explicitly set the preview mode to `noPreview`.
-
-> **Note:** By default, a `Network` will use the `automatic` preview mode which will detect when the network is being used in an Xcode preview and use the `success` mode in that case, otherwise it with use the `noPreview` mode.
+> **Note:** By default, a `Network` will use the `automatic` preview mode which will detect when the network is being used in an Xcode preview and use the `always` mode in that case, otherwise it with use the `never` mode.
 
 If you've passed your `Network` through your SwiftUI view layer using `environmentObject`, it's easy to override the network with a preview network in your Xcode Previews.
 ```swift
 struct MoviesScreen_Previews: PreviewProvider {
     static var previews: some View {
-        Group {
-            MoviesScreen()
-                .environmentObject(MoviesNetwork().preview(mode: .success))
-
-            MoviesScreen()
-                .environmentObject(MoviesNetwork().preview(mode: .loading))
-
-            MoviesScreen()
-                .environmentObject(MoviesNetwork().preview(mode: .failure()))
-        }
-        .onAppear { UIView.setAnimationsEnabled(false) }
+        MoviesScreen()
+            .environmentObject(MoviesNetwork().preview(.always))
     }
 }
 ```
-You can also use mock data directly from your preview assets by using the `NetworkRequest.preview(on: Network)` method.
+You can also get mock data directly from your preview assets by using the `NetworkRequest.preview(on: Network)` method.
 ```swift
 struct MovieSummaryRow_Previews: PreviewProvider {
     static var previews: some View {

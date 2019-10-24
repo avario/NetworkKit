@@ -1,5 +1,5 @@
 # NetworkKit
-An abstraction layer on top of `URLSession`, NetworkKit provides a clear way to organise and structure your network API requests. It also works seemlessly with Xcode Previews to allow you to preview mock API response data.
+A light abstraction layer on top of `URLSession`, NetworkKit provides a clear way to organise your network API requests.
 
 > ⚠️ **Warning:** This package is under active development and is not considered ready for production use.
 

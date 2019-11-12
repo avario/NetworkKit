@@ -1,82 +1,72 @@
 import Foundation
+import Combine
 import UIKit
 
-#if DEBUG
-
-public enum NetworkPreviewMode {
-	
-	case automatic
-	case always
-	case never
-	
-	static var modes: [ObjectIdentifier: NetworkPreviewMode] = .init()
+protocol NetworkPreviewable {
+    static func networkPreview() throws -> Self
 }
 
-public extension Network {
+public class PreviewNetworkRequester: NetworkRequester {
 
-	func preview(_ previewMode: NetworkPreviewMode) -> Self {
-		NetworkPreviewMode.modes[ObjectIdentifier(self)] = previewMode
-		return self
-	}
-}
+    public func perform<R: NetworkRequest, N: Network>(request: R, network: N) -> AnyPublisher<R.Response, NetworkError<N.RemoteError>> {
+        do {
+            guard let previewable = R.Response.self as? NetworkPreviewable else {
+                throw NetworkPreviewError.previewAssetNotFound(assetName: request.path)
+            }
 
-public extension NetworkRequest {
-	
-	func previewAssetName<N: Network>(on network: N) -> String {
-		let url = network.baseURL.appendingPathComponent(path)
-		var previewAssetName = url.absoluteString
-		if let scheme = url.scheme {
-			previewAssetName = previewAssetName.replacingOccurrences(of: "\(scheme)://", with: "")
-		}
-		
-		return previewAssetName
-	}
+            return Result.success(try type(of: previewable).networkPreview() as! R.Response)
+                .publisher.eraseToAnyPublisher()
+        } catch {
+            return Result.failure(NetworkError<N.RemoteError>(error))
+                .publisher.eraseToAnyPublisher()
+        }
+    }
 }
 
 enum NetworkPreviewError: Error {
 	case previewAssetNotFound(assetName: String)
 }
 
-public extension NetworkRequest where Response: Decodable {
-	
-	func preview<N: Network>(on network: N) throws -> Response {
-		let assetName = previewAssetName(on: network)
-		
-		guard let data = NSDataAsset(name: assetName)?.data else {
-			print("⚠️ Data preview asset not found with name: \(assetName)")
-			throw NetworkPreviewError.previewAssetNotFound(assetName: assetName)
-		}
-		
-		return try network.decoder.decode(Response.self, from: data)
-	}
+extension Decodable: NetworkPreviewable {
+    
 }
 
-public extension NetworkRequest where Response == Data {
-	
-	func preview<N: Network>(on network: N) throws -> Response {
-		let assetName = previewAssetName(on: network)
-		
-		guard let data = NSDataAsset(name: assetName)?.data else {
-			print("⚠️ Data preview asset not found with name: \(assetName)")
-			throw NetworkPreviewError.previewAssetNotFound(assetName: assetName)
-		}
-		
-		return data
-	}
+extension Data: NetworkPreviewable {
+
 }
 
-public extension NetworkRequest where Response == UIImage {
-	
-	func preview<N: Network>(on network: N) throws -> Response {
-		let assetName = previewAssetName(on: network)
-		
-		guard let image = UIImage(named: assetName) else {
-			print("⚠️ Image preview asset not found with name: \(assetName)")
-			throw NetworkPreviewError.previewAssetNotFound(assetName: assetName)
-		}
-		
-		return image
-	}
-}
-
-#endif
+//public extension NetworkRequest: PreviewableNetworkRequest where Response: Decodable {
+//
+//	func preview() throws -> Response {
+//		guard let data = NSDataAsset(name: path)?.data else {
+//			print("⚠️ Data preview asset not found with name: \(path)")
+//			throw NetworkPreviewError.previewAssetNotFound(assetName: path)
+//		}
+//
+//		return try Network.decoder.decode(Response.self, from: data)
+//	}
+//}
+//
+//public extension NetworkRequest: PreviewableNetworkRequest where Response == Data {
+//
+//	func preview() throws -> Response {
+//		guard let data = NSDataAsset(name: path)?.data else {
+//			print("⚠️ Data preview asset not found with name: \(path)")
+//			throw NetworkPreviewError.previewAssetNotFound(assetName: path)
+//		}
+//
+//		return data
+//	}
+//}
+//
+//public extension NetworkRequest: PreviewableNetworkRequest where Response == UIImage {
+//
+//	func preview() throws -> Response {
+//		guard let image = UIImage(named: path) else {
+//			print("⚠️ Image preview asset not found with name: \(path)")
+//			throw NetworkPreviewError.previewAssetNotFound(assetName: path)
+//		}
+//
+//		return image
+//	}
+//}

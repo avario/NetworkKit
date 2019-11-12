@@ -22,6 +22,9 @@ public enum NetworkError<T>: Error {
 		}
 
 		switch error {
+        case let remoteError as T:
+            self = .remote(remoteError)
+
 		case let decodingError as DecodingError:
 			self = .local(.decodingError(decodingError))
 

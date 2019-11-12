@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol Network: AnyObject {
+public protocol Network {
 
 	var baseURL: URL { get }
 
@@ -10,11 +10,13 @@ public protocol Network: AnyObject {
 	var headers: Headers { get }
 	associatedtype Headers: Encodable = EmptyEncodable
 
-	var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy { get }
-	var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { get }
+	static var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy { get }
+	static var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { get }
 
 	associatedtype RemoteError = Void
     func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError
+
+    var requester: NetworkRequester { get }
 }
 
 public extension Network {
@@ -22,16 +24,16 @@ public extension Network {
 	var parameters: EmptyEncodable { EmptyEncodable() }
 	var headers: EmptyEncodable { EmptyEncodable() }
 
-	var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy { .deferredToDate }
-	var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { .deferredToDate  }
+	static var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy { .deferredToDate }
+	static var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { .deferredToDate  }
 
-	var decoder: JSONDecoder {
+	static var decoder: JSONDecoder {
 		let decoder = JSONDecoder()
 		decoder.dateDecodingStrategy = dateDecodingStrategy
 		return decoder
 	}
 
-	var encoder: JSONEncoder {
+	static var encoder: JSONEncoder {
 		let encoder = JSONEncoder()
 		encoder.dateEncodingStrategy = dateEncodingStrategy
 		return encoder
@@ -48,7 +50,7 @@ public extension Network where RemoteError == Void {
 public extension Network where RemoteError: Decodable {
 
 	func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError {
-		return try decoder.decode(RemoteError.self, from: data)
+        return try Self.decoder.decode(RemoteError.self, from: data)
 	}
 }
 

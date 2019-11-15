@@ -17,6 +17,8 @@ public protocol NetworkRequest {
 
 	associatedtype Response = Data
 	func response(for data: Data) throws -> Response
+
+    func preview() throws -> Response
 }
 
 public extension NetworkRequest {

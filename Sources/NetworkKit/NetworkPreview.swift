@@ -2,55 +2,102 @@ import Foundation
 import Combine
 import UIKit
 
-public class PreviewNetworkRequester: NetworkRequester {
+public class PreviewAssetDataProvider: NetworkDataProvider {
+    public init() { }
 
-    public func perform<R: NetworkRequest, N: Network>(request: R, network: N) -> AnyPublisher<R.Response, NetworkError<N.RemoteError>> {
-        do {
-            return Result.success(try request.preview())
-                .publisher.eraseToAnyPublisher()
-        } catch {
-            return Result.failure(NetworkError<N.RemoteError>(error))
-                .publisher.eraseToAnyPublisher()
+    public func dataPublisher(for request: URLRequest) -> AnyPublisher<(data: Data, response: URLResponse), URLError> {
+        guard let url = request.url else {
+            fatalError()
         }
-    }
-}
 
-enum NetworkPreviewError: Error {
-	case previewAssetNotFound(assetName: String)
+        guard let data = Self.previewData(at: url) else {
+            print("⚠️ Preview asset not found for: \(url.absoluteString)")
+            return Result.failure(URLError(.cannotLoadFromNetwork)).publisher.eraseToAnyPublisher()
+        }
+
+        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+
+        return Result.success((data, response)).publisher.eraseToAnyPublisher()
+    }
+
+    static func previewData(at url: URL) -> Data? {
+        var assetName = url.absoluteString
+        if let scheme = url.scheme {
+            assetName = assetName.replacingOccurrences(of: "\(scheme)://", with: "")
+        }
+
+        guard assetName.isEmpty == false else {
+            return nil
+        }
+
+        if let data = NSDataAsset(name: assetName)?.data {
+            return data
+        }
+
+        if let image = UIImage(named: assetName),
+            let data = image.pngData() {
+            return data
+        }
+
+        let nextURL: URL
+
+        guard var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        if var queryItems = urlComponents.queryItems,
+            queryItems.isEmpty == false {
+            queryItems.removeLast()
+
+            if queryItems.isEmpty {
+                urlComponents.queryItems = nil
+            } else {
+                urlComponents.queryItems = queryItems
+            }
+
+            guard let componentsURL = urlComponents.url else {
+                return nil
+            }
+
+            nextURL = componentsURL
+
+        } else {
+            nextURL = url.deletingLastPathComponent()
+        }
+
+        return previewData(at: nextURL)
+    }
 }
 
 public extension NetworkRequest where Response: Decodable {
 
-	func preview() throws -> Response {
-		guard let data = NSDataAsset(name: path)?.data else {
-			print("⚠️ Data preview asset not found with name: \(path)")
-			throw NetworkPreviewError.previewAssetNotFound(assetName: path)
-		}
+    func preview<N: Network>(on network: N.Type) -> Response {
+        var url = N.baseURL.appendingPathComponent(path)
 
-        return try Network.decoder.decode(Response.self, from: data)
-	}
-}
+        switch encoding {
+        case .url:
+            let requestParameters = try! JSONSerialization.jsonObject(
+            with: try! N.encoder.encode(parameters)) as! [String: Any]
 
-public extension NetworkRequest where Response == Data {
+            guard requestParameters.isEmpty == false else {
+                break
+            }
 
-	func preview() throws -> Response {
-		guard let data = NSDataAsset(name: path)?.data else {
-			print("⚠️ Data preview asset not found with name: \(path)")
-			throw NetworkPreviewError.previewAssetNotFound(assetName: path)
-		}
+            var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            urlComponents.queryItems = requestParameters.map { parameter in
+                URLQueryItem(name: parameter.key, value: "\(parameter.value)")
+            }
 
-		return data
-	}
-}
+            url = urlComponents.url!
 
-public extension NetworkRequest where Response == UIImage {
+        case .json:
+            break
+        }
 
-	func preview() throws -> Response {
-		guard let image = UIImage(named: path) else {
-			print("⚠️ Image preview asset not found with name: \(path)")
-			throw NetworkPreviewError.previewAssetNotFound(assetName: path)
-		}
+        guard let data = PreviewAssetDataProvider.previewData(at: url) else {
+            fatalError("⚠️ Preview asset not found for: \(url.absoluteString)")
+        }
 
-		return image
-	}
+        return try! N.decoder.decode(Response.self, from: data)
+    }
 }

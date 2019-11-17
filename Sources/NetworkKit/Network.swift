@@ -2,7 +2,7 @@ import Foundation
 
 public protocol Network {
 
-	var baseURL: URL { get }
+	static var baseURL: URL { get }
 
 	var parameters: Parameters { get }
 	associatedtype Parameters: Encodable = EmptyEncodable
@@ -16,7 +16,7 @@ public protocol Network {
 	associatedtype RemoteError = Void
     func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError
 
-    var requester: NetworkRequester { get }
+    var dataProvider: NetworkDataProvider { get }
 }
 
 public extension Network {
@@ -38,6 +38,14 @@ public extension Network {
 		encoder.dateEncodingStrategy = dateEncodingStrategy
 		return encoder
 	}
+
+    var dataProvider: NetworkDataProvider {
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == nil else {
+            return PreviewAssetDataProvider()
+        }
+
+        return URLSession.shared
+    }
 }
 
 public extension Network where RemoteError == Void {

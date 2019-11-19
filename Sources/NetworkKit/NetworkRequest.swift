@@ -1,8 +1,10 @@
+import Combine
 import Foundation
 import UIKit
-import Combine
 
 public protocol NetworkRequest {
+	associatedtype Network: NetworkKit.Network
+
 	var method: HTTPMethod { get }
 	var path: String { get }
 	var encoding: ParameterEncoding { get }
@@ -13,11 +15,12 @@ public protocol NetworkRequest {
 	associatedtype Headers: Encodable = EmptyEncodable
 
 	associatedtype Response = Data
-    func response<N: Network>(on network: N, for data: Data) throws -> Response
+	func response(on network: Network, for data: Data) throws -> Response
+
+	associatedtype Fetcher = NetworkFetcher<Self>
 }
 
 public extension NetworkRequest {
-
 	var encoding: ParameterEncoding {
 		switch method {
 		case .get, .delete, .head:
@@ -30,86 +33,82 @@ public extension NetworkRequest {
 	var parameters: EmptyEncodable { EmptyEncodable() }
 	var headers: EmptyEncodable { EmptyEncodable() }
 
-    func request<N: Network>(on network: N) -> AnyPublisher<Response, NetworkError<N.RemoteError>>  {
-        do {
-            let url = N.baseURL.appendingPathComponent(path)
+	func request(on network: Network) -> AnyPublisher<Response, NetworkError<Network.RemoteError>> {
+		do {
+			let url = Network.baseURL.appendingPathComponent(path)
 
-            let requestParameters = try JSONSerialization.jsonObject(
-                with: try N.encoder.encode(parameters)) as! [String: Any]
-            let networkParameters = try JSONSerialization.jsonObject(
-                with: try N.encoder.encode(network.parameters)) as! [String: Any]
-            let allParameters = requestParameters.merging(networkParameters) { (requestParameter, _) in requestParameter }
+			let requestParameters = try JSONSerialization.jsonObject(
+				with: try Network.encoder.encode(parameters)) as! [String: Any]
+			let networkParameters = try JSONSerialization.jsonObject(
+				with: try Network.encoder.encode(network.parameters)) as! [String: Any]
+			let allParameters = requestParameters.merging(networkParameters) { requestParameter, _ in requestParameter }
 
-            var urlRequest: URLRequest
+			var urlRequest: URLRequest
 
-            switch encoding {
-            case .url:
-                var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-                urlComponents.queryItems = allParameters.map { parameter in
-                    URLQueryItem(name: parameter.key, value: "\(parameter.value)")
-                }
+			switch encoding {
+			case .url:
+				var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+				urlComponents.queryItems = allParameters.map { parameter in
+					URLQueryItem(name: parameter.key, value: "\(parameter.value)")
+				}
 
-                urlRequest = URLRequest(url: urlComponents.url!)
+				urlRequest = URLRequest(url: urlComponents.url!)
 
-            case .json:
-                urlRequest = URLRequest(url: url)
-                urlRequest.httpBody = try JSONSerialization.data(withJSONObject: allParameters)
-            }
+			case .json:
+				urlRequest = URLRequest(url: url)
+				urlRequest.httpBody = try JSONSerialization.data(withJSONObject: allParameters)
+			}
 
-            urlRequest.httpMethod = method.rawValue
+			urlRequest.httpMethod = method.rawValue
 
-            let requestHeaders = try JSONSerialization.jsonObject(
-                with: try N.encoder.encode(headers)) as! [String: Any]
-            let networkHeaders = try JSONSerialization.jsonObject(
-                with: try N.encoder.encode(network.headers)) as! [String: Any]
-            let allHeaders = requestHeaders.merging(networkHeaders) { (requestHeader, _) in requestHeader }
+			let requestHeaders = try JSONSerialization.jsonObject(
+				with: try Network.encoder.encode(headers)) as! [String: Any]
+			let networkHeaders = try JSONSerialization.jsonObject(
+				with: try Network.encoder.encode(network.headers)) as! [String: Any]
+			let allHeaders = requestHeaders.merging(networkHeaders) { requestHeader, _ in requestHeader }
 
-            for header in allHeaders {
-                urlRequest.setValue("\(header.value)", forHTTPHeaderField: header.key)
-            }
+			for header in allHeaders {
+				urlRequest.setValue("\(header.value)", forHTTPHeaderField: header.key)
+			}
 
-            return network.dataProvider.dataPublisher(for: urlRequest)
-                .tryMap { (data: Data, response: URLResponse) -> Response in
-                    guard let httpResponse = response as? HTTPURLResponse else {
-                        throw NetworkError<N.RemoteError>.local(.invalidURLResponse(response))
-                    }
+			return network.dataProvider.dataPublisher(for: urlRequest)
+				.tryMap { (data: Data, response: URLResponse) -> Response in
+					guard let httpResponse = response as? HTTPURLResponse else {
+						throw NetworkError<Network.RemoteError>.local(.invalidURLResponse(response))
+					}
 
-                    guard 200..<300 ~= httpResponse.statusCode else {
-                        throw NetworkError.remote(try network.remoteError(for: httpResponse, data: data))
-                    }
+					guard 200..<300 ~= httpResponse.statusCode else {
+						throw NetworkError.remote(try network.remoteError(for: httpResponse, data: data))
+					}
 
-                    return try self.response(on: network, for: data)
-            }
-            .mapError(NetworkError<N.RemoteError>.init)
-            .eraseToAnyPublisher()
+					return try self.response(on: network, for: data)
+				}
+				.mapError(NetworkError<Network.RemoteError>.init)
+				.eraseToAnyPublisher()
 
-        } catch {
-            return Result.failure(NetworkError<N.RemoteError>(error))
-                .publisher.eraseToAnyPublisher()
-        }
-    }
-
+		} catch {
+			return Result.failure(NetworkError<Network.RemoteError>(error))
+				.publisher.eraseToAnyPublisher()
+		}
+	}
 }
 
 public extension NetworkRequest where Response: Decodable {
-
-	func response<N: Network>(on network: N, for data: Data) throws -> Response {
-		return try N.decoder.decode(Response.self, from: data)
+	func response(on network: Network, for data: Data) throws -> Response {
+		return try Network.decoder.decode(Response.self, from: data)
 	}
 }
 
 public extension NetworkRequest where Response == Data {
-
-	func response<N: Network>(on network: N, for data: Data) throws -> Response {
+	func response(on network: Network, for data: Data) throws -> Response {
 		return data
 	}
 }
 
 public extension NetworkRequest where Response == UIImage {
-
-	func response<N: Network>(on network: N, for data: Data) throws -> Response {
+	func response(on network: Network, for data: Data) throws -> Response {
 		guard let image = UIImage(data: data) else {
-			throw NetworkError<N.RemoteError>.local(.invalidImageData(data))
+			throw NetworkError<Network.RemoteError>.local(.invalidImageData(data))
 		}
 
 		return image

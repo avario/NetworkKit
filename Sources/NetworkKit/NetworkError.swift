@@ -1,7 +1,6 @@
 import Foundation
 
 public enum NetworkError<T>: Error {
-
 	case local(LocalError)
 	case remote(T)
 
@@ -11,7 +10,9 @@ public enum NetworkError<T>: Error {
 
 		case decodingError(DecodingError)
 		case encodingError(EncodingError)
-		
+
+		case timeout
+
 		case unknown(Error)
 	}
 
@@ -22,8 +23,8 @@ public enum NetworkError<T>: Error {
 		}
 
 		switch error {
-        case let remoteError as T:
-            self = .remote(remoteError)
+		case let remoteError as T:
+			self = .remote(remoteError)
 
 		case let decodingError as DecodingError:
 			self = .local(.decodingError(decodingError))

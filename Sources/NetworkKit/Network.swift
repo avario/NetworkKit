@@ -1,7 +1,6 @@
 import Foundation
 
 public protocol Network {
-
 	static var baseURL: URL { get }
 
 	var parameters: Parameters { get }
@@ -14,18 +13,17 @@ public protocol Network {
 	static var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { get }
 
 	associatedtype RemoteError = Void
-    func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError
+	func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError
 
-    var dataProvider: NetworkDataProvider { get }
+	var dataProvider: NetworkDataProvider { get }
 }
 
 public extension Network {
-
 	var parameters: EmptyEncodable { EmptyEncodable() }
 	var headers: EmptyEncodable { EmptyEncodable() }
 
 	static var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy { .deferredToDate }
-	static var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { .deferredToDate  }
+	static var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { .deferredToDate }
 
 	static var decoder: JSONDecoder {
 		let decoder = JSONDecoder()
@@ -39,27 +37,21 @@ public extension Network {
 		return encoder
 	}
 
-    var dataProvider: NetworkDataProvider {
-        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == nil else {
-            return PreviewAssetDataProvider()
-        }
-
-        return URLSession.shared
-    }
+	var dataProvider: NetworkDataProvider {
+		return URLSession.shared
+	}
 }
 
 public extension Network where RemoteError == Void {
-
 	func remoteError(for response: HTTPURLResponse, data: Data) throws {
 		return
 	}
 }
 
 public extension Network where RemoteError: Decodable {
-
 	func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError {
-        return try Self.decoder.decode(RemoteError.self, from: data)
+		return try Self.decoder.decode(RemoteError.self, from: data)
 	}
 }
 
-public struct EmptyEncodable: Encodable { }
+public struct EmptyEncodable: Encodable {}

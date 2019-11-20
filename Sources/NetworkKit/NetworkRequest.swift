@@ -1,6 +1,5 @@
 import Combine
 import Foundation
-import UIKit
 
 public protocol NetworkRequest {
 	associatedtype Network: NetworkKit.Network
@@ -17,7 +16,7 @@ public protocol NetworkRequest {
 	associatedtype Response = Data
 	func response(on network: Network, for data: Data) throws -> Response
 
-	associatedtype Fetcher = NetworkFetcher<Self>
+	associatedtype Requester = NetworkRequester<Self>
 }
 
 public extension NetworkRequest {
@@ -35,7 +34,7 @@ public extension NetworkRequest {
 
 	func request(on network: Network) -> AnyPublisher<Response, NetworkError<Network.RemoteError>> {
 		do {
-			let url = Network.baseURL.appendingPathComponent(path)
+			let url = network.baseURL.appendingPathComponent(path)
 
 			let requestParameters = try JSONSerialization.jsonObject(
 				with: try Network.encoder.encode(parameters)) as! [String: Any]
@@ -71,7 +70,7 @@ public extension NetworkRequest {
 				urlRequest.setValue("\(header.value)", forHTTPHeaderField: header.key)
 			}
 
-			return network.dataProvider.dataPublisher(for: urlRequest)
+			return URLSession.shared.dataTaskPublisher(for: urlRequest)
 				.tryMap { (data: Data, response: URLResponse) -> Response in
 					guard let httpResponse = response as? HTTPURLResponse else {
 						throw NetworkError<Network.RemoteError>.local(.invalidURLResponse(response))
@@ -102,16 +101,6 @@ public extension NetworkRequest where Response: Decodable {
 public extension NetworkRequest where Response == Data {
 	func response(on network: Network, for data: Data) throws -> Response {
 		return data
-	}
-}
-
-public extension NetworkRequest where Response == UIImage {
-	func response(on network: Network, for data: Data) throws -> Response {
-		guard let image = UIImage(data: data) else {
-			throw NetworkError<Network.RemoteError>.local(.invalidImageData(data))
-		}
-
-		return image
 	}
 }
 

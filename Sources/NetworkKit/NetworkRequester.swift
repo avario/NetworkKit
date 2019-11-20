@@ -1,11 +1,11 @@
 import Combine
 import Foundation
 
-public class NetworkFetcher<R: NetworkRequest>: ObservableObject {
+public class NetworkRequester<R: NetworkRequest>: ObservableObject {
 	public enum State {
 		case loading
-		case error(NetworkError<R.Network.RemoteError>)
-		case fetched(R.Response)
+		case failure(NetworkError<R.Network.RemoteError>)
+		case success(R.Response)
 	}
 
 	@Published public var state: State = .loading
@@ -19,7 +19,7 @@ public class NetworkFetcher<R: NetworkRequest>: ObservableObject {
 	}
 
 	public var error: Error? {
-		if case let .error(error) = state {
+		if case let .failure(error) = state {
 			return error
 		} else {
 			return nil
@@ -27,7 +27,7 @@ public class NetworkFetcher<R: NetworkRequest>: ObservableObject {
 	}
 
 	public var response: R.Response? {
-		if case let .fetched(response) = state {
+		if case let .success(response) = state {
 			return response
 		} else {
 			return nil
@@ -36,12 +36,12 @@ public class NetworkFetcher<R: NetworkRequest>: ObservableObject {
 
 	public init() {}
 
-	public func fetch(_ request: R, on network: R.Network) {
+	public func request(_ request: R, on network: R.Network) {
 		cancellable = request
 			.request(on: network)
-			.map { .fetched($0) }
+			.map { .success($0) }
 			.catch { error -> Just<State> in
-				Just(.error(error))
+				Just(.failure(error))
 			}
 			.receive(on: DispatchQueue.main)
 			.assign(to: \.state, on: self)

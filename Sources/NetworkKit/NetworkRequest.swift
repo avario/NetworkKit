@@ -15,8 +15,6 @@ public protocol NetworkRequest {
 
 	associatedtype Response = Data
 	func response(on network: Network, for data: Data) throws -> Response
-
-	associatedtype Requester = NetworkRequester<Self>
 }
 
 public extension NetworkRequest {

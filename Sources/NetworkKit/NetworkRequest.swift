@@ -45,8 +45,10 @@ public extension NetworkRequest {
 			switch encoding {
 			case .url:
 				var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-				urlComponents.queryItems = allParameters.map { parameter in
-					URLQueryItem(name: parameter.key, value: "\(parameter.value)")
+				if allParameters.isEmpty == false {
+					urlComponents.queryItems = allParameters.map { parameter in
+						URLQueryItem(name: parameter.key, value: "\(parameter.value)")
+					}
 				}
 
 				urlRequest = URLRequest(url: urlComponents.url!)

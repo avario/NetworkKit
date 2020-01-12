@@ -20,8 +20,8 @@ public extension Network {
 	var parameters: EmptyEncodable { EmptyEncodable() }
 	var headers: EmptyEncodable { EmptyEncodable() }
 
-    static var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy { .deferredToDate }
-    static var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { .deferredToDate }
+    static var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy { .iso8601 }
+    static var dateDecodingStrategy: JSONDecoder.DateDecodingStrategy { .iso8601 }
 
     static var decoder: JSONDecoder {
 		let decoder = JSONDecoder()

@@ -39,8 +39,10 @@ public extension NetworkRequest {
                     with: try N.encoder.encode(parameters)) as! [String: Any]
 
 				var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-				urlComponents.queryItems = serializedParameters.map { parameter in
-					URLQueryItem(name: parameter.key, value: "\(parameter.value)")
+				if serializedParameters == false {
+					urlComponents.queryItems = serializedParameters { parameter in
+						URLQueryItem(name: parameter.key, value: "\(parameter.value)")
+					}
 				}
 
 				urlRequest = URLRequest(url: urlComponents.url!)

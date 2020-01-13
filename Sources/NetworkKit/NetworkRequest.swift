@@ -2,8 +2,6 @@ import Combine
 import Foundation
 
 public protocol NetworkRequest {
-	associatedtype Network: NetworkKit.Network
-
 	var method: HTTPMethod { get }
 	var path: String { get }
 	var encoding: ParameterEncoding { get }
@@ -14,7 +12,7 @@ public protocol NetworkRequest {
 	associatedtype Headers: Encodable = EmptyEncodable
 
 	associatedtype Response = Data
-	func response(on network: Network, for data: Data) throws -> Response
+    func response<N: Network>(on network: N, for data: Data) throws -> Response
 }
 
 public extension NetworkRequest {
@@ -30,22 +28,18 @@ public extension NetworkRequest {
 	var parameters: EmptyEncodable { EmptyEncodable() }
 	var headers: EmptyEncodable { EmptyEncodable() }
 
-	func request(on network: Network) -> AnyPublisher<Response, NetworkError<Network.RemoteError>> {
+	func request<N: Network>(on network: N) -> AnyPublisher<Response, NetworkError<N.RemoteError>> {
 		do {
 			let url = network.baseURL.appendingPathComponent(path)
-
-			let requestParameters = try JSONSerialization.jsonObject(
-				with: try Network.encoder.encode(parameters)) as! [String: Any]
-			let networkParameters = try JSONSerialization.jsonObject(
-				with: try Network.encoder.encode(network.parameters)) as! [String: Any]
-			let allParameters = requestParameters.merging(networkParameters) { requestParameter, _ in requestParameter }
-
 			var urlRequest: URLRequest
 
 			switch encoding {
 			case .url:
+                let serializedParameters = try JSONSerialization.jsonObject(
+                    with: try N.encoder.encode(parameters)) as! [String: Any]
+
 				var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-				urlComponents.queryItems = allParameters.map { parameter in
+				urlComponents.queryItems = serializedParameters.map { parameter in
 					URLQueryItem(name: parameter.key, value: "\(parameter.value)")
 				}
 
@@ -53,15 +47,25 @@ public extension NetworkRequest {
 
 			case .json:
 				urlRequest = URLRequest(url: url)
-				urlRequest.httpBody = try JSONSerialization.data(withJSONObject: allParameters)
+                urlRequest.httpBody = try JSONEncoder().encode(parameters)
+
+            case .multipartFormData:
+                let encoder = MultipartFormDataEncoder()
+                urlRequest = URLRequest(url: url)
+                urlRequest.setValue("multipart/form-data; boundary=\(encoder.boundary)", forHTTPHeaderField: "Content-Type")
+
+                let data = try encoder.encode(parameters)
+                urlRequest.setValue("\(data.count)", forHTTPHeaderField: "Content-Length")
+
+                urlRequest.httpBody = data
 			}
 
 			urlRequest.httpMethod = method.rawValue
 
 			let requestHeaders = try JSONSerialization.jsonObject(
-				with: try Network.encoder.encode(headers)) as! [String: Any]
+				with: try N.encoder.encode(headers)) as! [String: Any]
 			let networkHeaders = try JSONSerialization.jsonObject(
-				with: try Network.encoder.encode(network.headers)) as! [String: Any]
+				with: try N.encoder.encode(network.headers)) as! [String: Any]
 			let allHeaders = requestHeaders.merging(networkHeaders) { requestHeader, _ in requestHeader }
 
 			for header in allHeaders {
@@ -71,7 +75,7 @@ public extension NetworkRequest {
 			return URLSession.shared.dataTaskPublisher(for: urlRequest)
 				.tryMap { (data: Data, response: URLResponse) -> Response in
 					guard let httpResponse = response as? HTTPURLResponse else {
-						throw NetworkError<Network.RemoteError>.local(.invalidURLResponse(response))
+						throw NetworkError<N.RemoteError>.local(.invalidURLResponse(response))
 					}
 
 					guard 200..<300 ~= httpResponse.statusCode else {
@@ -80,24 +84,24 @@ public extension NetworkRequest {
 
 					return try self.response(on: network, for: data)
 				}
-				.mapError(NetworkError<Network.RemoteError>.init)
+				.mapError(NetworkError<N.RemoteError>.init)
 				.eraseToAnyPublisher()
 
 		} catch {
-			return Result.failure(NetworkError<Network.RemoteError>(error))
+			return Result.failure(NetworkError<N.RemoteError>(error))
 				.publisher.eraseToAnyPublisher()
 		}
 	}
 }
 
 public extension NetworkRequest where Response: Decodable {
-	func response(on network: Network, for data: Data) throws -> Response {
-		return try Network.decoder.decode(Response.self, from: data)
+	func response<N: Network>(on network: N, for data: Data) throws -> Response {
+		return try N.decoder.decode(Response.self, from: data)
 	}
 }
 
 public extension NetworkRequest where Response == Data {
-	func response(on network: Network, for data: Data) throws -> Response {
+	func response<N: Network>(on network: N, for data: Data) throws -> Response {
 		return data
 	}
 }
@@ -105,6 +109,7 @@ public extension NetworkRequest where Response == Data {
 public enum ParameterEncoding {
 	case url
 	case json
+    case multipartFormData
 }
 
 public enum HTTPMethod: String {

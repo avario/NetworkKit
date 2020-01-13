@@ -3,9 +3,6 @@ import Foundation
 public protocol Network {
     var baseURL: URL { get }
 
-	var parameters: Parameters { get }
-	associatedtype Parameters: Encodable = EmptyEncodable
-
 	var headers: Headers { get }
 	associatedtype Headers: Encodable = EmptyEncodable
 
@@ -17,7 +14,6 @@ public protocol Network {
 }
 
 public extension Network {
-	var parameters: EmptyEncodable { EmptyEncodable() }
 	var headers: EmptyEncodable { EmptyEncodable() }
 
     static var dateEncodingStrategy: JSONEncoder.DateEncodingStrategy { .deferredToDate }

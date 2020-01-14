@@ -1,81 +1,16 @@
 import Foundation
 import UIKit
 
-public enum MultipartFormData {
-    case png(UIImage, fileName: String?)
-    case jpeg(UIImage, fileName: String?)
+@propertyWrapper
+struct MultipartFormData: Encodable {
+    var wrappedValue: Data
 
-    var fileType: String {
-        switch self {
-        case .png:
-            return "image/png"
-        case .jpeg:
-            return "image/jpeg"
-        }
-    }
-
-    var fileData: Data? {
-        switch self {
-        case .png(let image, _):
-            return image.pngData()
-        case .jpeg(let image, _):
-            return image.jpegData(compressionQuality: 1)
-        }
-    }
-
-    var fileName: String? {
-        switch self {
-        case .png(_, let fileName):
-            return fileName
-        case .jpeg(_, let fileName):
-            return fileName
-        }
-    }
-}
-
-extension MultipartFormData: Encodable {
-
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         guard let multipartFormDataEncoder = encoder as? MultipartFormDataEncoding else {
-            throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "MultipartFormDataImage can only be encoded by a MultipartFormDataEncoder."))
+            return
         }
 
-        guard let fileData = fileData else {
-            throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "No image data."))
-        }
-
-
-        var dispositionProperties: [MultipartFormDataPart.Property.ContentDisposition] = [
-            .name(encoder.codingPath.map { $0.stringValue }.joined(separator: "."))
-        ]
-
-        if let fileName = fileName {
-            dispositionProperties.append(.fileName(fileName))
-        }
-
-        let part = MultipartFormDataPart(
-            properties: [
-                .disposition(dispositionProperties),
-                .type(fileType)
-            ],
-            data: fileData)
-
-        multipartFormDataEncoder.parts.parts.append(part)
-    }
-}
-
-struct MultipartFormDataPart {
-    let properties: [Property]
-    let data: Data
-
-    enum Property {
-        case disposition([ContentDisposition])
-        case type(String)
-
-        enum ContentDisposition {
-            case name(String)
-            case fileName(String)
-        }
+        multipartFormDataEncoder.parts.encode(key: encoder.codingPath, value: wrappedValue)
     }
 }
 
@@ -127,8 +62,23 @@ public class MultipartFormDataEncoder {
 
 fileprivate struct MultipartFormDataEncoding: Encoder {
 
+    struct Part {
+        let properties: [Property]
+        let data: Data
+
+        enum Property {
+            case disposition([ContentDisposition])
+            case type(String)
+
+            enum ContentDisposition {
+                case name(String)
+                case fileName(String)
+            }
+        }
+    }
+
     fileprivate final class PartsContainer {
-        var parts: [MultipartFormDataPart] = []
+        var parts: [Part] = []
 
         func encode(key codingKey: [CodingKey], string: String) {
             encode(key: codingKey, value: string.data(using: .utf8)!)
@@ -137,7 +87,7 @@ fileprivate struct MultipartFormDataEncoding: Encoder {
         func encode(key codingKey: [CodingKey], value: Data) {
             let key = codingKey.map { $0.stringValue }.joined(separator: ".")
 
-            let part = MultipartFormDataPart(
+            let part = Part(
                 properties: [.disposition([.name(key)])],
                 data: value)
 

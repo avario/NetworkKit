@@ -1,5 +1,42 @@
 import Foundation
 
+@propertyWrapper
+struct MultipartFormData: Encodable {
+    var wrappedValue: Data
+    let mimeType: String
+    let fileName: String?
+
+    init(wrappedValue: Data = Data(), mimeType: String, fileName: String? = nil) {
+        self.wrappedValue = wrappedValue
+        self.mimeType = mimeType
+        self.fileName = fileName
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        guard let multipartFormDataEncoder = encoder as? MultipartFormDataEncoding else {
+            try wrappedValue.encode(to: encoder)
+            return
+        }
+
+        var dispositionProperties: [MultipartFormDataEncoding.Part.Property.ContentDisposition] = [
+            .name(encoder.codingPath.map { $0.stringValue }.joined(separator: "."))
+        ]
+
+        if let fileName = fileName {
+            dispositionProperties.append(.fileName(fileName))
+        }
+
+        let part = MultipartFormDataEncoding.Part(
+            properties: [
+                .disposition(dispositionProperties),
+                .type(mimeType)
+            ],
+            data: wrappedValue)
+
+        multipartFormDataEncoder.parts.parts.append(part)
+    }
+}
+
 final public class MultipartFormDataEncoder {
 
     let boundary = UUID().uuidString
@@ -17,18 +54,16 @@ final public class MultipartFormDataEncoder {
                 switch property {
                 case .disposition(let dispositions):
 
-                    partString.append("Content-Disposition: form-data;")
-
-                    for disposition in dispositions {
-                        switch disposition {
-                        case .name(let name):
-                            partString.append(" name=\"\(name)\"")
-                        case .fileName(let fileName):
-                            partString.append(" filename=\"\(fileName)\"")
-                        }
-                    }
-
-                    partString.append("\r\n")
+                    partString.append((
+                        ["Content-Disposition: form-data"] +
+                            dispositions.map { disposition in
+                                switch disposition {
+                                case .name(let name):
+                                    return "name=\"\(name)\""
+                                case .fileName(let fileName):
+                                    return "filename=\"\(fileName)\""
+                                }
+                        }).joined(separator: "; ") + "\r\n")
 
                 case .type(let type):
                     partString.append("Content-Type: \(type)\r\n")

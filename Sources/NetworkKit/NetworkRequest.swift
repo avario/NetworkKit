@@ -74,7 +74,7 @@ public extension NetworkRequest {
 				urlRequest.setValue("\(header.value)", forHTTPHeaderField: header.key)
 			}
 
-			return URLSession.shared.dataTaskPublisher(for: urlRequest)
+			return network.session.dataTaskPublisher(for: urlRequest)
 				.tryMap { (data: Data, response: URLResponse) -> Response in
 					guard let httpResponse = response as? HTTPURLResponse else {
 						throw NetworkError<N.RemoteError>.local(.invalidURLResponse(response))
@@ -98,13 +98,13 @@ public extension NetworkRequest {
 
 public extension NetworkRequest where Response: Decodable {
 	func response<N: Network>(on network: N, for data: Data) throws -> Response {
-		return try N.decoder.decode(Response.self, from: data)
+		try N.decoder.decode(Response.self, from: data)
 	}
 }
 
 public extension NetworkRequest where Response == Data {
 	func response<N: Network>(on network: N, for data: Data) throws -> Response {
-		return data
+		data
 	}
 }
 

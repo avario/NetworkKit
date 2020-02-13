@@ -11,6 +11,8 @@ public protocol Network {
 
 	associatedtype RemoteError = Void
 	func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError
+	
+	var session: URLSession { get }
 }
 
 public extension Network {
@@ -30,6 +32,10 @@ public extension Network {
 		encoder.dateEncodingStrategy = dateEncodingStrategy
 		return encoder
 	}
+	
+	var session: URLSession {
+		.shared
+	}
 }
 
 public extension Network where RemoteError == Void {
@@ -40,7 +46,7 @@ public extension Network where RemoteError == Void {
 
 public extension Network where RemoteError: Decodable {
 	func remoteError(for response: HTTPURLResponse, data: Data) throws -> RemoteError {
-        return try Self.decoder.decode(RemoteError.self, from: data)
+		try Self.decoder.decode(RemoteError.self, from: data)
 	}
 }
 

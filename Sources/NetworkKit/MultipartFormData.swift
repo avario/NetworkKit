@@ -1,6 +1,20 @@
 import Foundation
+import UIKit
 
-final public class MultipartFormDataEncoder {
+@propertyWrapper
+struct MultipartFormData: Encodable {
+    var wrappedValue: Data
+
+    func encode(to encoder: Encoder) throws {
+        guard let multipartFormDataEncoder = encoder as? MultipartFormDataEncoding else {
+            return
+        }
+
+        multipartFormDataEncoder.parts.encode(key: encoder.codingPath, value: wrappedValue)
+    }
+}
+
+public class MultipartFormDataEncoder {
 
     let boundary = UUID().uuidString
 
@@ -48,7 +62,7 @@ final public class MultipartFormDataEncoder {
 
 fileprivate struct MultipartFormDataEncoding: Encoder {
 
-    struct MultipartFormDataPart {
+    struct Part {
         let properties: [Property]
         let data: Data
 
@@ -64,7 +78,7 @@ fileprivate struct MultipartFormDataEncoding: Encoder {
     }
 
     fileprivate final class PartsContainer {
-        var parts: [MultipartFormDataPart] = []
+        var parts: [Part] = []
 
         func encode(key codingKey: [CodingKey], string: String) {
             encode(key: codingKey, value: string.data(using: .utf8)!)
@@ -73,7 +87,7 @@ fileprivate struct MultipartFormDataEncoding: Encoder {
         func encode(key codingKey: [CodingKey], value: Data) {
             let key = codingKey.map { $0.stringValue }.joined(separator: ".")
 
-            let part = MultipartFormDataPart(
+            let part = Part(
                 properties: [.disposition([.name(key)])],
                 data: value)
 
@@ -181,11 +195,6 @@ fileprivate struct MultipartFormDataKeyedEncoding<Key: CodingKey>: KeyedEncoding
     }
 
     mutating func encode<T: Encodable>(_ value: T, forKey key: Key) throws {
-        if let data = value as? Data {
-            parts.encode(key: codingPath + [key], value: data)
-            return
-        }
-
         var encoding = MultipartFormDataEncoding(to: parts)
         encoding.codingPath.append(key)
         try value.encode(to: encoding)
@@ -310,11 +319,6 @@ fileprivate struct MultipartFormDataUnkeyedEncoding: UnkeyedEncodingContainer {
     }
 
     mutating func encode<T: Encodable>(_ value: T) throws {
-        if let data = value as? Data {
-            parts.encode(key: codingPath + [nextIndexedKey()], value: data)
-            return
-        }
-
         var encoding = MultipartFormDataEncoding(to: parts)
         encoding.codingPath = codingPath + [nextIndexedKey()]
         try value.encode(to: encoding)
@@ -411,11 +415,6 @@ fileprivate struct MultipartFormDataSingleValueEncoding: SingleValueEncodingCont
     }
 
     mutating func encode<T: Encodable>(_ value: T) throws {
-        if let data = value as? Data {
-            parts.encode(key: codingPath, value: data)
-            return
-        }
-
         var encoding = MultipartFormDataEncoding(to: parts)
         encoding.codingPath = codingPath
         try value.encode(to: encoding)

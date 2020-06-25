@@ -3,7 +3,7 @@ import UIKit
 
 public enum MultipartFormData {
     case png(UIImage, fileName: String?)
-    case jpeg(UIImage, fileName: String?)
+    case jpeg(UIImage, fileName: String?, compressionQuality: CGFloat)
 
     var fileType: String {
         switch self {
@@ -18,8 +18,8 @@ public enum MultipartFormData {
         switch self {
         case .png(let image, _):
             return image.pngData()
-        case .jpeg(let image, _):
-            return image.jpegData(compressionQuality: 1)
+        case .jpeg(let image, _, let compressionQuality):
+            return image.jpegData(compressionQuality: compressionQuality)
         }
     }
 
@@ -27,7 +27,7 @@ public enum MultipartFormData {
         switch self {
         case .png(_, let fileName):
             return fileName
-        case .jpeg(_, let fileName):
+        case .jpeg(_, let fileName, _):
             return fileName
         }
     }
@@ -37,11 +37,11 @@ extension MultipartFormData: Encodable {
 
     public func encode(to encoder: Encoder) throws {
         guard let multipartFormDataEncoder = encoder as? MultipartFormDataEncoding else {
-            throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "MultipartFormDataImage can only be encoded by a MultipartFormDataEncoder."))
+            throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "MultipartFormData can only be encoded by a MultipartFormDataEncoder."))
         }
 
         guard let fileData = fileData else {
-            throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "No image data."))
+            throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "No file data."))
         }
 
 
